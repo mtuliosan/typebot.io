@@ -5,7 +5,6 @@ import { configureRuntimeEnv } from 'next-runtime-env/build/configure.js'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
-
 const __dirname = dirname(__filename)
 
 const injectViewerUrlIfVercelPreview = (val) => {
@@ -66,7 +65,23 @@ const nextConfig = {
         headers: [
           {
             key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
+            value: 'ALLOWALL',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
           },
         ],
       },
@@ -99,29 +114,15 @@ export default process.env.NEXT_PUBLIC_SENTRY_DSN
   ? withSentryConfig(
       nextConfig,
       {
-        // For all available options, see:
-        // https://github.com/getsentry/sentry-webpack-plugin#options
-
-        // Suppresses source map uploading logs during build
         silent: true,
         release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA + '-builder',
         org: process.env.SENTRY_ORG,
         project: process.env.SENTRY_PROJECT,
       },
       {
-        // For all available options, see:
-        // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
-        // Upload a larger set of source maps for prettier stack traces (increases build time)
         widenClientFileUpload: true,
-
-        // Routes browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers (increases server load)
         tunnelRoute: '/monitoring',
-
-        // Hides source maps from generated client bundles
         hideSourceMaps: true,
-
-        // Automatically tree-shake Sentry logger statements to reduce bundle size
         disableLogger: true,
       }
     )

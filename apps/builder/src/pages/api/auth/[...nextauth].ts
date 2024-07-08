@@ -16,36 +16,20 @@ import { mockedUser } from '@typebot.io/lib/mockedUser'
 import { getNewUserInvitations } from '@/features/auth/helpers/getNewUserInvitations'
 import { sendVerificationRequest } from '@/features/auth/helpers/sendVerificationRequest'
 import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis/nodejs'
 import ky from 'ky'
 import { env } from '@typebot.io/env'
 import * as Sentry from '@sentry/nextjs'
 import { getIp } from '@typebot.io/lib/getIp'
 import { trackEvents } from '@typebot.io/telemetry/trackEvents'
-import Redis from 'ioredis'
 
 const providers: Provider[] = []
 
-let emailSignInRateLimiter: Ratelimit | undefined
+let rateLimit: Ratelimit | undefined
 
-if (env.REDIS_URL) {
-  const redis = new Redis(env.REDIS_URL)
-  const rateLimitCompatibleRedis = {
-    sadd: <TData>(key: string, ...members: TData[]) =>
-      redis.sadd(key, ...members.map((m) => String(m))),
-    eval: async <TArgs extends unknown[], TData = unknown>(
-      script: string,
-      keys: string[],
-      args: TArgs
-    ) =>
-      redis.eval(
-        script,
-        keys.length,
-        ...keys,
-        ...(args ?? []).map((a) => String(a))
-      ) as Promise<TData>,
-  }
-  emailSignInRateLimiter = new Ratelimit({
-    redis: rateLimitCompatibleRedis,
+if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
+  rateLimit = new Ratelimit({
+    redis: Redis.fromEnv(),
     limiter: Ratelimit.slidingWindow(1, '60 s'),
   })
 }
@@ -171,6 +155,36 @@ export const getAuthOptions = ({
   providers,
   session: {
     strategy: 'database',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  cookies: {
+    sessionToken: {
+      name: `__Secure-next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'none',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production', // true in production
+      },
+    },
+    callbackUrl: {
+      name: `__Secure-next-auth.callback-url`,
+      options: {
+        sameSite: 'none',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    csrfToken: {
+      name: `__Secure-next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'none',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
   },
   pages: {
     signIn: '/signin',
@@ -245,13 +259,13 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   let restricted: 'rate-limited' | undefined
 
   if (
-    emailSignInRateLimiter &&
+    rateLimit &&
     req.url?.startsWith('/api/auth/signin/email') &&
     req.method === 'POST'
   ) {
     const ip = getIp(req)
     if (ip) {
-      const { success } = await emailSignInRateLimiter.limit(ip)
+      const { success } = await rateLimit.limit(ip)
       if (!success) restricted = 'rate-limited'
     }
   }

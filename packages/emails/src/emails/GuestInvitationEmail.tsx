@@ -32,7 +32,7 @@ export const GuestInvitationEmail = ({
     <MjmlBody width={600}>
       <MjmlSection padding="0">
         <MjmlColumn>
-          <HeroImage src={`${env.NEXTAUTH_URL}/images/invitationBanner.png`} />
+          <HeroImage src={`${env.NEXTAUTH_URL}/images/.png`} />
         </MjmlColumn>
       </MjmlSection>
       <MjmlSection padding="0 24px" cssClass="smooth">
